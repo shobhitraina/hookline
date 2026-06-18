@@ -396,9 +396,8 @@ function totals(){
   var paid=L.filter(function(l){return isPaid(l.src);}).length,active={};
   L.forEach(function(l){if(isPaid(l.src))active[l.src]=1;});
   var spend=0;Object.keys(active).forEach(function(id){var a=adById(id);if(a)spend+=a.spend;});
-  var counts={};L.forEach(function(l){if(isPaid(l.src))counts[l.src]=(counts[l.src]||0)+1;});
-  var top=null,tc=0;Object.keys(counts).forEach(function(id){if(counts[id]>tc){tc=counts[id];top=id;}});
-  return {t:t,conv:conv,rate:t?Math.round(conv/t*100):0,paid:paid,org:t-paid,cpl:paid?spend/paid:0,activeAds:Object.keys(active).length,topAd:top?srcName(top):"n/a",tc:tc};
+  var ranked=perAd(),topRow=null;for(var ri=0;ri<ranked.length;ri++){if(!ranked[ri].organic&&ranked[ri].leads>0){topRow=ranked[ri];break;}}
+  return {t:t,conv:conv,rate:t?Math.round(conv/t*100):0,paid:paid,org:t-paid,cpl:paid?spend/paid:0,activeAds:Object.keys(active).length,topAd:topRow?topRow.ad.name:"n/a",tc:topRow?topRow.leads:0,topConv:topRow?topRow.conv:0};
 }
 function bucketCount(b){var L=LEADS();if(b==="All")return L.length;return L.filter(function(l){return stageOf(l.status)===b;}).length;}
 
@@ -413,7 +412,7 @@ function renderKPIs(){
   h+='<div class="kpi"><div class="l">Converted</div><div class="v g">'+t.conv+'</div><div class="s">'+t.rate+'% conversion</div></div>';
   h+='<div class="kpi"><div class="l">Active ads</div><div class="v">'+t.activeAds+'</div><div class="s">driving leads</div></div>';
   h+='<div class="kpi"><div class="l">Avg cost / lead</div><div class="v p">'+inr(t.cpl)+'</div><div class="s">across paid ads</div></div>';
-  h+='<div class="kpi"><div class="l">Top ad</div><div class="v" style="font-size:13px;line-height:1.25;margin-top:8px">'+esc(t.topAd)+'</div><div class="s">'+t.tc+' leads</div></div>';
+  h+='<div class="kpi"><div class="l">Top ad</div><div class="v" style="font-size:13px;line-height:1.25;margin-top:8px">'+esc(t.topAd)+'</div><div class="s">'+(t.topConv>0?(t.topConv+" conversions"):(t.tc+" leads"))+'</div></div>';
   document.getElementById("kpis").innerHTML=h;
 }
 function renderBuckets(){var h="";BUCKETS.forEach(function(b){h+='<button class="bucket'+(b===curBucket?" active":"")+'" onclick="setBucket(\''+b+'\')">'+b+' <b>'+bucketCount(b)+'</b></button>';});document.getElementById("buckets").innerHTML=h;}
@@ -440,8 +439,8 @@ function renderList(){
 function perAd(){
   var L=LEADS();var rows=ADLIST().map(function(a){var ls=L.filter(function(l){return l.src===a.id;});var conv=ls.filter(function(l){return l.status==="Converted";}).length;return {ad:a,leads:ls.length,conv:conv,convRate:ls.length?Math.round(conv/ls.length*100):0,cpl:ls.length?a.spend/ls.length:0,cpc:conv?a.spend/conv:0};});
   var ol=L.filter(function(l){return l.src==="organic";}),oc=ol.filter(function(l){return l.status==="Converted";}).length;
-  rows.push({ad:{name:"Organic (no ad)",type:"Unattributed",platform:"-",spend:0,hook:null},leads:ol.length,conv:oc,convRate:ol.length?Math.round(oc/ol.length*100):0,cpl:0,cpc:0,organic:true});
-  rows.sort(function(a,b){return b.leads-a.leads;});return rows;
+  rows.sort(function(a,b){if(b.conv!==a.conv)return b.conv-a.conv;if(a.conv>0&&a.cpc!==b.cpc)return a.cpc-b.cpc;if(b.leads!==a.leads)return b.leads-a.leads;return a.cpl-b.cpl;});
+  rows.push({ad:{name:"Organic (no ad)",type:"Unattributed",platform:"-",spend:0,hook:null},leads:ol.length,conv:oc,convRate:ol.length?Math.round(oc/ol.length*100):0,cpl:0,cpc:0,organic:true});return rows;
 }
 function renderAds(){
   var rows=perAd(),h="";
