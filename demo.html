@@ -470,7 +470,7 @@ function renderFunnel(){
 }
 function renderAll(){renderKPIs();renderBuckets();renderList();renderAds();renderFunnel();}
 
-function showDash(){document.getElementById("dash").style.display="block";document.getElementById("focus").style.display="none";window.scrollTo(0,0);}
+function showDash(){document.getElementById("dash").style.display="block";document.getElementById("focus").style.display="none";renderAll();window.scrollTo(0,0);}
 function showFocusView(){document.getElementById("dash").style.display="none";document.getElementById("focus").style.display="block";window.scrollTo(0,0);}
 function openFocus(id){focusId=id;renderFocus();showFocusView();}
 function buildTimeline(l){
@@ -512,7 +512,7 @@ function renderFocus(){
 function cbRow(l,label,opts){var h='<div class="cbrow"><span class="cl">'+label+'</span>';opts.forEach(function(o){var v=label+" "+o;h+='<span class="chip'+(l.callback===v?" sel":"")+'" onclick="setCb(\''+l.id+'\',\''+v+'\')">'+o+'</span>';});return h+'</div>';}
 function timeAgo(iso){var h=Math.round((Date.now()-new Date(iso))/3600000);if(h<1)return"just now";if(h<24)return h+"h";return Math.round(h/24)+"d";}
 function setRating(id,n){var l=find(id);if(l){l.rating=n;save();renderFocus();}}
-function setDispo(id,d){var l=find(id);if(l){l.status=d;l.lastContact=new Date().toISOString();if(d!=="New")l.attempts++;save();renderFocus();renderKPIs();renderBuckets();toast('Marked as "'+d+'"');}}
+function setDispo(id,d){var l=find(id);if(l){l.status=d;l.lastContact=new Date().toISOString();if(d!=="New")l.attempts++;save();renderFocus();renderAll();toast('Marked as "'+d+'"');}}
 function setCb(id,v){var l=find(id);if(l){l.callback=v;save();renderFocus();toast("Callback set: "+v);}}
 function clearCb(id){var l=find(id);if(l){l.callback=null;save();renderFocus();}}
 function addComment(id){var l=find(id),inp=document.getElementById("cmtInput");if(l&&inp.value.trim()){l.comments.push({by:l.rep,text:inp.value.trim(),date:new Date().toISOString()});save();renderFocus();}}
