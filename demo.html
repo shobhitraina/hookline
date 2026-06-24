@@ -415,7 +415,7 @@ function renderNav(){
    g.items.forEach(it=>{
      const [r,ic,lbl,ck]=it;const on=route===r?'on':'';
      let cnt='';
-     if(r==='leads')cnt=DB.leads.length;else if(r==='converted')cnt=DB.leads.filter(l=>l.status==='Converted').length;
+     if(r==='converted')cnt=DB.leads.filter(l=>l.status==='Converted').length;
      else if(r==='orders')cnt=DB.orders.length;else if(r==='checkout')cnt=DB.checkouts.length;else if(r==='adlibrary')cnt=DB.ads.length;
      h+=`<a class="${on}" onclick="go('${r}')"><span class="ic">${ic}</span>${lbl}${cnt!==''?`<span class="cnt">${cnt}</span>`:''}</a>`;
    });
