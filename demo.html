@@ -493,6 +493,15 @@ function kpiCard(l,v,s,style){return `<div class="kpi"><div class="l">${l}</div>
 
 /* ---------- WAITLIST ---------- */
 let wFilter={bucket:'Live',status:'all',q:'',source:'all'};
+let navIds=[];let focusId=null;
+function filteredLeads(){
+ let list=DB.leads.filter(l=>leadBucket(l)===wFilter.bucket);
+ if(wFilter.status!=='all')list=list.filter(l=>l.status===wFilter.status);
+ if(wFilter.source==='organic')list=list.filter(l=>!l.adId);else if(wFilter.source!=='all')list=list.filter(l=>l.adId===wFilter.source);
+ if(wFilter.q){const q=wFilter.q.toLowerCase();list=list.filter(l=>(l.name+l.phone+l.city).toLowerCase().includes(q));}
+ return list.slice().sort((a,b)=>b.created-a.created);
+}
+function rateRow(id,n){const l=DB.leads.find(x=>x.id===id);if(l){l.rating=(l.rating===n?0:n);save();render();}}
 function rLeads(){
  setTop('Waitlist Management','');
  const reps=DB.reps;
@@ -506,10 +515,7 @@ function rLeads(){
  const sub=['all',...distinct].map(s=>{
    const cnt=s==='all'?bucketLeads.length:bucketLeads.filter(l=>l.status===s).length;
    return `<button class="cbk" style="${wFilter.status===s?'background:#0f172a;color:#fff;border-color:#0f172a':''}" onclick="wSetStatus('${s}')">${s==='all'?'All':s} ${cnt}</button>`;}).join('');
- let list=wFilter.status==='all'?bucketLeads:bucketLeads.filter(l=>l.status===wFilter.status);
- if(wFilter.source==='organic')list=list.filter(l=>!l.adId);else if(wFilter.source!=='all')list=list.filter(l=>l.adId===wFilter.source);
- if(wFilter.q){const q=wFilter.q.toLowerCase();list=list.filter(l=>(l.name+l.phone+l.city).toLowerCase().includes(q));}
- list=list.slice().sort((a,b)=>b.created-a.created);
+ const list=filteredLeads();navIds=list.map(l=>l.id);
  const opts=DB.ads.map(a=>`<option value="${a.id}" ${wFilter.source===a.id?'selected':''}>${esc(a.n.slice(0,40))}</option>`).join('');
  const rows=list.map(l=>leadRow(l,reps)).join('')||`<tr><td colspan="12" style="text-align:center;padding:34px;color:#94A3B8">No leads in this view.</td></tr>`;
  return `<div class="btw" style="margin-bottom:12px">
@@ -536,7 +542,7 @@ function wSetStatus(s){wFilter.status=s;render();}
 function leadRow(l,reps){
  const [fg,bg]=ST_COL[l.status];
  const goalBadge=l.goal?`<span class="gbadge" style="background:${DB.cfg.color}" title="${esc(l.goal)}">${l.goal[0]}</span>`:'—';
- const stars=l.rating?`<span class="stars">${'<b>★</b>'.repeat(l.rating)}${'★'.repeat(5-l.rating)}</span>`:`<span class="stars">★★★★★</span>`;
+ const stars=`<span style="white-space:nowrap">${[1,2,3,4,5].map(n=>`<span onclick="event.stopPropagation();rateRow('${l.id}',${n})" style="cursor:pointer;font-size:13px;color:${n<=l.rating?'#F59E0B':'#CBD5E1'}">★</span>`).join('')}</span>`;
  const cb=l.callbackMin==null?`<button class="cbtn" style="border:1px solid var(--line);color:#64748b" onclick="event.stopPropagation();openFocus('${l.id}')">Set time</button>`:
    (l.callbackMin<0?`<span class="cbtn" style="background:#FEE2E2;color:#B91C1C">${fmtCb(l.callbackMin)}</span>`:`<span class="cbtn" style="background:#DCFCE7;color:#15803D">${fmtCb(l.callbackMin)}</span>`);
  const statusSel=`<select class="statussel" style="background:${bg};color:${fg}" onclick="event.stopPropagation()" onchange="setStatus('${l.id}',this.value)">${STATUSES.map(s=>`<option ${s===l.status?'selected':''}>${s}</option>`).join('')}</select>`;
@@ -618,12 +624,17 @@ function submitSim(){
 const OUTCOMES=[["Did Not Pick","1","#FEF3C7","#B45309"],["Not Reachable","2","#E2E8F0","#475569"],["Call Back Later","3","#FEF9C3","#A16207"],["Potential","4","#E0E7FF","#4338CA"],["Need Demo","5","#EDE9FE","#6D28D9"],["Neutral","6","#F1F5F9","#475569"],["Said No","7","#FEE2E2","#B91C1C"],["Cold","8","#E2E8F0","#475569"],["Different City","9","#F3E8FF","#7C3AED"],["Converted","0","#D1FAE5","#047857"],["Language","-","#F3E8FF","#7C3AED"],["Bad Lead","=","#FEE2E2","#B91C1C"]];
 const CBPRESET=[["15M"],["30M"],["1HR"],["2HR"],["3HR"],["4HR"],["8HR"]];
 function openFocus(id){const l=DB.leads.find(x=>x.id===id);if(!l)return;
- const ov=document.getElementById('overlay');document.getElementById('focus').innerHTML=focusHtml(l);ov.classList.add('show');document.body.style.overflow='hidden';}
+ focusId=id;
+ if(!navIds.includes(id)){const fl=filteredLeads();navIds=fl.some(x=>x.id===id)?fl.map(x=>x.id):[id];}
+ const ov=document.getElementById('overlay');document.getElementById('focus').innerHTML=focusHtml(l);ov.classList.add('show');ov.scrollTop=0;document.body.style.overflow='hidden';}
 function closeFocus(){document.getElementById('overlay').classList.remove('show');document.body.style.overflow='';render();}
+function skipLead(){const idx=navIds.indexOf(focusId);const next=idx>=0?navIds[idx+1]:null;if(next){openFocus(next);}else{closeFocus();}}
+function rateFocus(id,n){const l=DB.leads.find(x=>x.id===id);if(l){l.rating=(l.rating===n?0:n);save();document.getElementById('focus').innerHTML=focusHtml(l);}}
 document.getElementById('overlay').addEventListener('click',e=>{if(e.target.id==='overlay')closeFocus();});
 function focusHtml(l){
  const ad=l.adId?adById(l.adId):null;
- const stars=`<span class="stars" style="font-size:16px">${'<b>★</b>'.repeat(l.rating)}${'★'.repeat(5-l.rating)}</span>`;
+ const pos=navIds.indexOf(l.id);
+ const stars=`<span style="font-size:18px;white-space:nowrap">${[1,2,3,4,5].map(n=>`<span onclick="rateFocus('${l.id}',${n})" style="cursor:pointer;color:${n<=l.rating?'#F59E0B':'#E2E8F0'}">★</span>`).join('')}</span>`;
  // timeline
  let tl='';
  if(l.status==='Converted')tl+=tle('Marked converted',fmtDate(l.created+ 7*86400000),l.rep,'#16A34A');
@@ -640,7 +651,7 @@ function focusHtml(l){
    <div><div style="font-weight:800;font-size:17px">${esc(l.name)} <span style="font-size:13px;color:#64748b;font-weight:500">${l.phone}</span></div>${stars}</div>
    <div class="sp"></div>
    <button class="btn" style="color:#7C3AED;border-color:#DDD6FE" onclick="aiAsk('${l.id}')">✦ Ask AI</button>
-   <button class="btn">Skip</button>
+   <button class="btn" onclick="skipLead()">Skip${pos>=0&&navIds.length>1?` (${pos+1}/${navIds.length})`:''} →</button>
    <a class="btn grn" href="tel:${l.phone}">📞 Call</a></div>
  <div class="fmeta">
    <span class="chip">AGE <b>${l.age||'—'}</b></span><span class="chip">FOR <b>${l.forr}</b></span>
