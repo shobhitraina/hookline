@@ -789,7 +789,6 @@ function aggGroup(leads,ads){
 function laCells(a){
  const cp=a.convPct;
  return `<td>${a.spend?inr(a.spend):'—'}</td><td>${a.cpl!=null?inr(a.cpl):'—'}</td><td>${a.cpc!=null?inr(a.cpc):'—'}</td>
-  <td>${a.hook!=null?heat(+a.hook.toFixed(1),6,24,'%'):'—'}</td><td>${a.ret!=null?heat(+a.ret.toFixed(0),14,30,'%'):'—'}</td><td>${a.ctr!=null?heat(+a.ctr.toFixed(2),0.5,3,'%'):'—'}</td>
   <td><b>${a.total}</b></td><td>${a.total?`<span class="heat" style="background:${cp>=20?'#DCFCE7':cp>=8?'#FEF9C3':'#F1F5F9'};color:${cp>=20?'#15803D':cp>=8?'#A16207':'#64748b'}">${cp.toFixed(1)}%</span>`:'—'}</td>
   ${ST_SHORT.map(s=>{const v=a.counts[s[0]]||0;return `<td style="${v?(POS.has(s[0])?'background:#F0FDF4;color:#15803D;font-weight:700':NEG.has(s[0])?'background:#FEF2F2;color:#B91C1C;font-weight:700':'font-weight:600'):'color:#CBD5E1'}">${v||'—'}</td>`;}).join('')}`;
 }
@@ -825,8 +824,8 @@ function rLeadAnalysis(){
    <div style="display:flex;gap:8px"><button class="btn sm">↻ Refresh</button><button class="btn sm">⬇ Export CSV</button></div></div>
    <div class="muted" style="font-size:13px;margin-bottom:10px">Showing <b style="color:#0f172a">${totalLeads}</b> leads · ${inr(totalSpend)} spent · ${inr(totalLeads?totalSpend/totalLeads:0)} / lead · ${inr(totalConv?totalSpend/totalConv:0)} / convert${laGroup==='ad'?' · <span style="color:#4F46E5">click a campaign to expand its ads</span>':''}</div>
    <div class="twrap"><table class="tbl"><tr>
-     <th>${hdr}</th><th>Spend</th><th>CPL</th><th>CPC</th><th>Hook</th><th>Ret</th><th>CTR</th><th>Total</th><th>Conv %</th>${statusCols}</tr>${body}</table></div>
-   <p class="muted" style="font-size:11.5px;margin-top:10px">Positive statuses are tinted green, disqualifying ones red. Hook / Retention / CTR use a heat scale. CPL = spend ÷ leads, CPC = spend ÷ conversions. This is the quality-weighted view that decides which ads to scale or cut.</p>`;
+     <th>${hdr}</th><th>Spend</th><th>CPL</th><th>CPC</th><th>Total</th><th>Conv %</th>${statusCols}</tr>${body}</table></div>
+   <p class="muted" style="font-size:11.5px;margin-top:10px">Positive statuses are tinted green, disqualifying ones red. CPL = spend ÷ leads, CPC = spend ÷ conversions. This is the quality-weighted view that decides which ads to scale or cut.</p>`;
 }
 function laToggle(ci){const order=window._laOrder||[];const c=order[ci];if(c){laOpen[c]=!laOpen[c];render();}}
 function heat(v,lo,hi,suf){const t=Math.max(0,Math.min(1,(v-lo)/(hi-lo)));const bg=`hsl(${48-t*8},${70+t*15}%,${92-t*30}%)`;const fg=t>0.55?'#92400E':'#A16207';return `<span class="heat" style="background:${bg};color:${fg}">${v}${suf}</span>`;}
