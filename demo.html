@@ -512,7 +512,7 @@ function rLeads(){
    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
      <input class="inp" id="wq" placeholder="Search name or phone…" value="${esc(wFilter.q)}" oninput="wSearch(this.value)" style="width:200px">
      <select class="inp" onchange="wFilter.source=this.value;renderLeadsBody()"><option value="all">Source: All</option><option value="organic">Organic</option>${opts}</select>
-     <button class="btn pri" onclick="addLead()">+ Add lead</button>
+     <button class="btn pri" onclick="openSim()">✨ Simulate a lead</button>
    </div></div>
    <div class="pills" style="margin-bottom:10px">${bTabs}</div>
    <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:12px">${sub}</div>
@@ -559,6 +559,52 @@ function addLead(){
  const name=pick(r,FIRST)+' '+pick(r,LAST);
  const l={id:'ld'+Date.now(),name:name.trim(),phone:'9'+(100000000+Math.floor(Math.random()*899999999)),created:Date.now(),status:'New',rating:0,attempts:0,city:pick(r,cfg.cities),age:35+Math.floor(Math.random()*40),forr:pick(r,cfg.fors),plan:'Unknown',goal:pick(r,cfg.goals),rep:pick(r,cfg.reps),adId:ad.id,adName:ad.n,platform:ad.p,notes:0,callbackMin:null,comments:[],calls:[]};
  ad.leads++;DB.leads.unshift(l);wFilter.bucket='Live';wFilter.status='all';save();render();
+}
+
+/* ---------- SIMULATE A LEAD (website capture form) ---------- */
+function openSim(){
+ const cfg=DB.cfg;
+ const adOpts='<option value="organic">No ad — found you organically / direct</option>'+DB.ads.map(a=>`<option value="${a.id}">${esc(a.n)}</option>`).join('');
+ const cityOpts=cfg.cities.map(c=>`<option>${c}</option>`).join('');
+ const goalOpts=cfg.goals.map(g=>`<option>${g}</option>`).join('');
+ const d=document.createElement('div');d.id='simOv';d.className='overlay show';d.style.zIndex='200';
+ d.innerHTML=`<div style="max-width:460px;margin:5vh auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 30px 80px rgba(0,0,0,.4)">
+   <div style="background:${cfg.color};color:#fff;padding:16px 22px"><div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;opacity:.85">${esc(cfg.brand)} · landing page</div><div style="font-size:18px;font-weight:800;margin-top:2px">Book a free callback</div></div>
+   <div style="padding:20px 22px">
+     <p class="muted" style="font-size:12.5px;margin-bottom:14px">You're a visitor who just clicked an ad and landed on ${esc(cfg.brand)}'s site. Fill the form, choose the ad you came from, and watch the lead land in the CRM, attributed to that exact creative.</p>
+     <label style="font-size:12px;font-weight:600">Name</label>
+     <input class="inp" id="simName" placeholder="Your name" style="width:100%;margin:4px 0 12px" value="${pick(rng(Date.now()>>>0),FIRST)} ${pick(rng((Date.now()+9)>>>0),LAST)}">
+     <div style="display:flex;gap:10px">
+       <div style="flex:1"><label style="font-size:12px;font-weight:600">Phone</label><input class="inp" id="simPhone" style="width:100%;margin-top:4px" value="9${(100000000+Math.floor(Math.random()*899999999))}"></div>
+       <div style="flex:1"><label style="font-size:12px;font-weight:600">City</label><select class="inp" id="simCity" style="width:100%;margin-top:4px">${cityOpts}</select></div>
+     </div>
+     <label style="font-size:12px;font-weight:600;margin-top:12px;display:block">${cfg.concern==='goal'?'Your goal':'Your concern'}</label>
+     <select class="inp" id="simGoal" style="width:100%;margin:4px 0 12px">${goalOpts}</select>
+     <label style="font-size:12px;font-weight:700;color:${cfg.color};display:block">📣 Which ad did you come from?</label>
+     <select class="inp" id="simAd" style="width:100%;margin-top:4px">${adOpts}</select>
+     <div style="display:flex;gap:10px;margin-top:18px">
+       <button class="btn pri" style="flex:1;justify-content:center" onclick="submitSim()">Submit & watch it land →</button>
+       <button class="btn" onclick="closeSim()">Cancel</button>
+     </div>
+   </div></div>`;
+ d.onclick=e=>{if(e.target.id==='simOv')closeSim();};
+ document.body.appendChild(d);document.body.style.overflow='hidden';
+}
+function closeSim(){const d=document.getElementById('simOv');if(d)d.remove();document.body.style.overflow='';}
+function submitSim(){
+ const cfg=DB.cfg;
+ const name=(document.getElementById('simName').value||'Demo Visitor').trim();
+ const phone=document.getElementById('simPhone').value||('9'+(100000000+Math.floor(Math.random()*899999999)));
+ const city=document.getElementById('simCity').value;
+ const goal=document.getElementById('simGoal').value;
+ const adVal=document.getElementById('simAd').value;
+ const ad=adVal==='organic'?null:adById(adVal);
+ const l={id:'ld'+Date.now(),name,phone,created:Date.now(),status:'New',rating:0,attempts:0,city,age:35+Math.floor(Math.random()*40),forr:pick(rng(Date.now()>>>0),cfg.fors),plan:'Unknown',goal,rep:cfg.reps[0],adId:ad?ad.id:null,adName:ad?ad.n:null,platform:ad?ad.p:'direct',notes:0,callbackMin:null,comments:[],calls:[]};
+ if(ad)ad.leads++;
+ DB.leads.unshift(l);save();
+ closeSim();
+ wFilter.bucket='Live';wFilter.status='all';route='leads';render();
+ openFocus(l.id); // show the attribution chip + let them Ask AI
 }
 
 /* ---------- FOCUS MODE ---------- */
