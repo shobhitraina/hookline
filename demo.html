@@ -208,16 +208,21 @@ const ST_COL={
 const ST_SHORT=[["New","NEW"],["Converted","CONV"],["Potential","POTENTIAL"],["Need Demo","DEMO"],["Neutral","NEUTRAL"],["Call Back Later","CBL"],["Did Not Pick","DNP"],["Not Reachable","NR"],["Different City","UNSERV"],["Cold","COLD"],["Language","LANG"],["Bad Lead","BAD"],["Said No","SAID NO"]];
 const POS=new Set(["New","Converted","Potential","Need Demo"]);
 const NEG=new Set(["Said No","Cold","Different City","Language","Bad Lead"]);
-/* primary buckets */
-const BUCKETS=[
- {k:"Live",st:["New","Did Not Pick","Call Back Later","Not Reachable","Potential","Neutral"]},
- {k:"Waiting",st:["Call Back Later","Potential"]},
- {k:"Cold",st:["Cold"]},
- {k:"Need Demo",st:["Need Demo"]},
- {k:"Unserviceable",st:["Different City","Language"]},
- {k:"Converted",st:["Converted"]},
- {k:"Dead",st:["Said No","Bad Lead"]},
-];
+/* primary buckets — a lead belongs to exactly ONE bucket.
+   Live vs Waiting is decided by callback timing, not status:
+   Waiting = a callback scheduled for a future day; Live = due now / overdue / none. */
+const BUCKET_ORDER=["Live","Waiting","Cold","Need Demo","Unserviceable","Converted","Dead"];
+const WORKABLE=["New","Did Not Pick","Call Back Later","Not Reachable","Potential","Neutral"];
+function isFutureCb(l){return l.callbackMin!=null&&l.callbackMin>=600;} // >=~10h ≈ next day or later
+function leadBucket(l){
+ const s=l.status;
+ if(s==="Converted")return"Converted";
+ if(s==="Said No"||s==="Bad Lead")return"Dead";
+ if(s==="Cold")return"Cold";
+ if(s==="Different City"||s==="Language")return"Unserviceable";
+ if(s==="Need Demo")return"Need Demo";
+ return isFutureCb(l)?"Waiting":"Live";
+}
 
 /* ---------- INDUSTRIES ---------- */
 const INDUSTRIES={
@@ -329,8 +334,10 @@ function genData(indKey){
    const organic=r()<0.12;const ad=organic?null:ads[Math.floor(r()*ads.length)];
    const attempts=status==="New"?0:1+Math.floor(r()*4);
    const rating=(["Potential","Need Demo","Converted"].includes(status))?(3+Math.floor(r()*3)):(r()<0.4?0:1+Math.floor(r()*3));
+   // callbacks only for workable, non-New leads. Mix of overdue (negative), due-today (small +),
+   // and future-day (large +) so leads split naturally between Live and Waiting.
    let cbMin=null;
-   if(["Call Back Later","Potential","Did Not Pick"].includes(status)){cbMin=Math.floor(r()*4000)-1000;}
+   if(status!=="New"&&WORKABLE.includes(status)&&r()<0.72){cbMin=Math.floor(r()*4300)-1300;}
    const lead={
      id:'ld'+i,name,phone:'9'+(100000000+Math.floor(r()*899999999)),created,status,rating,attempts,
      city:pick(r,cfg.cities),age:r()<0.15?null:35+Math.floor(r()*40),
@@ -399,8 +406,7 @@ function load(){
 }
 function resetDemo(){localStorage.removeItem(lsKey());load();render();}
 
-/* ---------- helpers for buckets/counts ---------- */
-function bucketCount(k){const b=BUCKETS.find(x=>x.k===k);if(k==="Dead")return DB.leads.filter(l=>["Said No","Bad Lead","Cold","Different City","Language"].includes(l.status)&&false).length;return DB.leads.filter(l=>b.st.includes(l.status)).length;}
+/* ---------- helpers ---------- */
 function adById(id){return DB.ads.find(a=>a.id===id);}
 
 /* ============================================================ RENDER ============================================================ */
@@ -490,19 +496,20 @@ let wFilter={bucket:'Live',status:'all',q:'',source:'all'};
 function rLeads(){
  setTop('Waitlist Management','');
  const reps=DB.reps;
- // top buckets
- const bTabs=['Live','Waiting','Cold','Need Demo','Unserviceable','Converted','Dead'].map(k=>{
-   const b=BUCKETS.find(x=>x.k===k);const cnt=DB.leads.filter(l=>b.st.includes(l.status)).length;
+ // top buckets — each lead in exactly one bucket via leadBucket()
+ const bTabs=BUCKET_ORDER.map(k=>{
+   const cnt=DB.leads.filter(l=>leadBucket(l)===k).length;
    return `<button class="pill ${wFilter.bucket===k?'on':''}" onclick="wSetBucket('${k}')">${k}<span class="c">${cnt}</span></button>`;}).join('');
- const bk=BUCKETS.find(x=>x.k===wFilter.bucket);
- const sub=['all',...bk.st.filter((v,i,a)=>a.indexOf(v)===i)].map(s=>{
-   const cnt=s==='all'?DB.leads.filter(l=>bk.st.includes(l.status)).length:DB.leads.filter(l=>l.status===s&&bk.st.includes(l.status)).length;
-   return `<button class="cbk ${wFilter.status===s?'':''}" style="${wFilter.status===s?'background:#0f172a;color:#fff;border-color:#0f172a':''}" onclick="wSetStatus('${s}')">${s==='all'?'All':s} ${cnt}</button>`;}).join('');
- let list=DB.leads.filter(l=>bk.st.includes(l.status));
- if(wFilter.status!=='all')list=list.filter(l=>l.status===wFilter.status);
+ const bucketLeads=DB.leads.filter(l=>leadBucket(l)===wFilter.bucket);
+ // sub-tabs = the statuses actually present in this bucket (so Waiting never shows "New")
+ const distinct=STATUSES.filter(s=>bucketLeads.some(l=>l.status===s));
+ const sub=['all',...distinct].map(s=>{
+   const cnt=s==='all'?bucketLeads.length:bucketLeads.filter(l=>l.status===s).length;
+   return `<button class="cbk" style="${wFilter.status===s?'background:#0f172a;color:#fff;border-color:#0f172a':''}" onclick="wSetStatus('${s}')">${s==='all'?'All':s} ${cnt}</button>`;}).join('');
+ let list=wFilter.status==='all'?bucketLeads:bucketLeads.filter(l=>l.status===wFilter.status);
  if(wFilter.source==='organic')list=list.filter(l=>!l.adId);else if(wFilter.source!=='all')list=list.filter(l=>l.adId===wFilter.source);
  if(wFilter.q){const q=wFilter.q.toLowerCase();list=list.filter(l=>(l.name+l.phone+l.city).toLowerCase().includes(q));}
- list.sort((a,b)=>b.created-a.created);
+ list=list.slice().sort((a,b)=>b.created-a.created);
  const opts=DB.ads.map(a=>`<option value="${a.id}" ${wFilter.source===a.id?'selected':''}>${esc(a.n.slice(0,40))}</option>`).join('');
  const rows=list.map(l=>leadRow(l,reps)).join('')||`<tr><td colspan="12" style="text-align:center;padding:34px;color:#94A3B8">No leads in this view.</td></tr>`;
  return `<div class="btw" style="margin-bottom:12px">
