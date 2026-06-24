@@ -365,9 +365,9 @@ function genData(indKey){
  // checkout attempts (synthetic, mostly abandoned)
  const checkouts=[];const fields=["name","email","phone","address","city","plan","billingCycle","agreedToTerms"];
  for(let i=0;i<22;i++){
-   const done=Math.floor(r()*fields.length)+1;const ab=r();
+   const done=1+Math.floor(r()*(fields.length-1)); // 1..total-1 — never all fields (those become orders)
    checkouts.push({id:randId(r),name:r()<0.4?null:(pick(r,FIRST)+' '+pick(r,LAST)).trim(),
-     status:ab<0.55?"Abandoned":(ab<0.85?"Partially Abandoned":"Completed"),
+     status:r()<0.6?"Abandoned":"Partially Abandoned",
      done, total:fields.length, survey:r()<0.25, ad:pick(r,ads),
      startedMin:Math.floor(r()*2880)});
  }
@@ -400,6 +400,7 @@ function makeCall(r,lead,ad,cfg,status,latest){
 let curInd='fitness',route='dashboard';
 function lsKey(){return 'hldemo_'+curInd;}
 function save(){try{localStorage.setItem(lsKey(),JSON.stringify({leads:DB.leads,ads:DB.ads,orders:DB.orders}));}catch(e){}}
+function saveNav(){try{localStorage.setItem('hldemo_nav',JSON.stringify({ind:curInd,route}));}catch(e){}}
 function load(){
  DB=genData(curInd);
  try{const raw=localStorage.getItem(lsKey());if(raw){const s=JSON.parse(raw);if(s.leads){DB.leads=s.leads;}if(s.ads){DB.ads=s.ads;}if(s.orders)DB.orders=s.orders;}}catch(e){}
@@ -435,6 +436,7 @@ function render(){
  const fn={dashboard:rDashboard,leads:rLeads,converted:rConverted,orders:rOrders,checkout:rCheckout,analytics:rAnalytics,leadanalysis:rLeadAnalysis,sales:rSales,creativeperf:rCreativePerf,creativedash:rCreativeDash,adlibrary:rAdLibrary,duplicates:rDuplicates,settings:rSettings}[route]||rDashboard;
  c.innerHTML=fn();
  if(window._after){window._after();window._after=null;}
+ saveNav();
 }
 
 /* ---------- DASHBOARD ---------- */
@@ -745,9 +747,9 @@ function utmInfo(orderId){const o=DB.orders.find(x=>x.id===orderId);if(!o)return
 /* ---------- CHECKOUT ATTEMPTS ---------- */
 function rCheckout(){
  setTop('Checkout Attempts','Track and analyze customer checkout attempts');
- const c=DB.checkouts;const ab=c.filter(x=>x.status==='Abandoned').length;const pa=c.filter(x=>x.status==='Partially Abandoned').length;const done=c.filter(x=>x.status==='Completed').length;
- let kpi=`<div class="kpis" style="grid-template-columns:repeat(4,1fr)">
-   ${kpiCard('Total attempts',c.length,'')}${kpiCard('Possibly abandoned',pa,'',' style=color:#D97706')}${kpiCard('Abandoned',ab,'',' style=color:#DC2626')}${kpiCard('Completed',done,'',' style=color:#16A34A')}</div>`;
+ const c=DB.checkouts;const ab=c.filter(x=>x.status==='Abandoned').length;const pa=c.filter(x=>x.status==='Partially Abandoned').length;
+ let kpi=`<div class="kpis" style="grid-template-columns:repeat(3,1fr)">
+   ${kpiCard('Total attempts',c.length,'')}${kpiCard('Possibly abandoned',pa,'',' style=color:#D97706')}${kpiCard('Abandoned',ab,'',' style=color:#DC2626')}</div>`;
  // drop-off: field completion
  const fields=["Name","Phone","Email","Address","City","PIN code","Plan","Agree to terms"];
  const lost=c.filter(x=>x.status!=='Completed');
@@ -950,7 +952,8 @@ function rSettings(){
 function banner(t){return `<div class="banner">✨ ${t}</div>`;}
 
 /* ---------- BOOT ---------- */
-function buildIndSel(){const s=document.getElementById('indSel');s.innerHTML=Object.keys(INDUSTRIES).map(k=>`<option value="${k}">${INDUSTRIES[k].brand} — ${IND_LABELS[k]}</option>`).join('');s.value=curInd;s.onchange=()=>{curInd=s.value;route='dashboard';load();render();};}
+function buildIndSel(){const s=document.getElementById('indSel');s.innerHTML=Object.keys(INDUSTRIES).map(k=>`<option value="${k}">${INDUSTRIES[k].brand} — ${IND_LABELS[k]}</option>`).join('');s.value=curInd;s.onchange=()=>{curInd=s.value;load();render();};}
+try{const n=JSON.parse(localStorage.getItem('hldemo_nav')||'null');if(n){if(n.ind&&INDUSTRIES[n.ind])curInd=n.ind;if(n.route)route=n.route;}}catch(e){}
 buildIndSel();load();render();
 </script>
 </body>
