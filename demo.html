@@ -163,8 +163,18 @@ svg.spark{display:block}
 
 .banner{background:linear-gradient(100deg,#EEF0FF,#F5F7FF);border:1px solid #E0E7FF;border-radius:12px;padding:13px 16px;font-size:13px;color:#3730A3;margin-bottom:16px;display:flex;gap:10px;align-items:center}
 
+/* mobile nav strip (sidebar is hidden ≤860px) */
+.mnav{display:none}
 @media(max-width:1100px){.fcols{grid-template-columns:1fr}.adgrid{grid-template-columns:repeat(2,1fr)}}
-@media(max-width:860px){.side{display:none}.adgrid{grid-template-columns:1fr}.content{padding:14px}}
+@media(max-width:860px){
+  .side{display:none}.adgrid{grid-template-columns:1fr}.content{padding:14px}
+  .mnav{display:flex;gap:6px;align-items:center;overflow-x:auto;padding:8px 14px;background:#fff;border-bottom:1px solid var(--line);-webkit-overflow-scrolling:touch}
+  .mnav a{flex-shrink:0;padding:6px 12px;border-radius:18px;border:1px solid var(--line);font-size:12px;font-weight:600;color:#475569;background:#fff;white-space:nowrap}
+  .mnav a.on{background:var(--primary);color:#fff;border-color:var(--primary)}
+  .mnav select{flex-shrink:0;border:1px solid var(--line);border-radius:9px;padding:5px 8px;font-size:12px;background:#fff;max-width:150px}
+}
+@media(max-width:640px){.kpis{grid-template-columns:repeat(2,1fr)!important}}
+@media(max-width:400px){.kpis{grid-template-columns:1fr!important}}
 </style>
 </head>
 <body>
@@ -183,6 +193,7 @@ svg.spark{display:block}
       <span class="tag green" id="liveTag">● Live demo data</span>
       <button class="btn sm" onclick="resetDemo()">↺ Reset</button>
     </div>
+    <div class="mnav" id="mnav"></div>
     <div class="content" id="content"></div>
   </div>
 </div>
@@ -211,6 +222,7 @@ const ST_COL={
 const ST_SHORT=[["New","NEW"],["Converted","CONV"],["Potential","POTENTIAL"],["Need Demo","DEMO"],["Neutral","NEUTRAL"],["Call Back Later","CBL"],["Did Not Pick","DNP"],["Not Reachable","NR"],["Different City","UNSERV"],["Cold","COLD"],["Language","LANG"],["Bad Lead","BAD"],["Said No","SAID NO"]];
 const POS=new Set(["New","Converted","Potential","Need Demo"]);
 const NEG=new Set(["Said No","Cold","Different City","Language","Bad Lead"]);
+const PLAN_AMT={Individual:1500,Duo:2000,Family:2500,Starter:999,Pro:1799,Single:799,Routine:1499,Bundle:1999,Consult:500,Package:8000,Premium:15000,Subscription:1299};
 /* primary buckets — a lead belongs to exactly ONE bucket.
    Live vs Waiting is decided by callback timing, not status:
    Waiting = a callback scheduled for a future day; Live = due now / overdue / none. */
@@ -278,7 +290,7 @@ const INDUSTRIES={
    ]},
  clinic:{brand:"DermaStudio",color:"#0D9488",plans:["Consult","Package","Premium"],fors:["Self","Gift"],
    goals:["Acne / scars","Pigmentation","Hair","Anti-ageing"],concern:"concern",
-   reps:["Aman","Sara","Nikhil","Ananya","Rohit"],cities:["Bangalore","Bengaluru","Mumbai","Hyderabad"],
+   reps:["Aman","Sara","Nikhil","Ananya","Rohit"],cities:["Bangalore","Mumbai","Hyderabad","Pune"],
    ads:[
     {n:"3_Meet our dermatologists | Video",p:"ig",f:"Video",camp:"[C1] DermaStudio | Brand | BLR | May'26",desc:"Clinic credibility film. Meet the dermatologists, the space, the tech. Trust-first."},
     {n:"8_Acne consult, what to expect | Video",p:"ig",f:"Video",camp:"[C2] DermaStudio | Acne | BLR | Jun'26",desc:"Education on the acne consult journey, sets expectations, drives bookings."},
@@ -362,7 +374,7 @@ function genData(indKey){
  ads.forEach(a=>{if(a.spend===0)a.spend=Math.round(300+r()*1200);});
  // orders from converted
  const orders=leads.filter(l=>l.status==="Converted").map((l,i)=>({
-   id:'ORD'+(1000+i),lead:l,amount:({Individual:1500,Duo:2000,Family:2500,Starter:999,Pro:1799,Single:799,Routine:1499,Bundle:1999,Consult:500,Package:8000,Premium:15000,Subscription:1299}[l.plan]||1500),
+   id:'ORD'+(1000+i),lead:l,amount:(PLAN_AMT[l.plan]||1500),
    status:r()<0.75?"Success":"Created",connected:r()<0.6,when:l.created+ (2+Math.floor(r()*6))*86400000
  }));
  // checkout attempts (synthetic, mostly abandoned)
@@ -431,6 +443,13 @@ function renderNav(){
    });
  });
  document.getElementById('nav').innerHTML=h;
+ // mobile strip: industry switcher + all screens as pills (sidebar is hidden ≤860px)
+ const m=document.getElementById('mnav');
+ if(m){
+   const indOpts=Object.keys(INDUSTRIES).map(k=>`<option value="${k}" ${k===curInd?'selected':''}>${INDUSTRIES[k].brand}</option>`).join('');
+   const pills=NAV.flatMap(g=>g.items).map(it=>`<a class="${route===it[0]?'on':''}" onclick="go('${it[0]}')">${it[1]} ${it[2]}</a>`).join('');
+   m.innerHTML=`<select aria-label="Industry" onchange="curInd=this.value;load();render()">${indOpts}</select>${pills}`;
+ }
 }
 
 function render(){
@@ -569,7 +588,12 @@ function leadRow(l,reps){
 }
 function fmtDate(t){const d=new Date(t);return d.toLocaleDateString('en-IN',{day:'numeric',month:'short'})+' '+d.toLocaleTimeString('en-IN',{hour:'numeric',minute:'2-digit'});}
 function fmtCb(m){if(m<0){const h=Math.round(-m/60);return h>=24?'-'+Math.round(h/24)+'d':'-'+h+'h';}const h=Math.round(m/60);if(m<60)return '+'+m+'m';if(h<24)return '+'+h+'h';return h<48?'next day':'+'+Math.round(h/24)+'d';}
-function setStatus(id,s){const l=DB.leads.find(x=>x.id===id);if(l){l.status=s;l.attempts++;save();render();}}
+// converting a lead creates its order (the Orders screen promises exactly this)
+function ensureOrderFor(l){
+ if(DB.orders.some(o=>o.lead&&o.lead.id===l.id))return;
+ DB.orders.push({id:'ORD'+(1000+DB.orders.length),lead:l,amount:(PLAN_AMT[l.plan]||1500),status:'Created',connected:false,when:Date.now()});
+}
+function setStatus(id,s){const l=DB.leads.find(x=>x.id===id);if(l){l.status=s;l.attempts++;if(s==='Converted')ensureOrderFor(l);save();render();}}
 function setRep(id,r){const l=DB.leads.find(x=>x.id===id);if(l){l.rep=r;save();}}
 function addLead(){
  const cfg=DB.cfg;const r=rng(Date.now()>>>0);
@@ -612,7 +636,7 @@ function closeSim(){const d=document.getElementById('simOv');if(d)d.remove();doc
 function submitSim(){
  const cfg=DB.cfg;
  const name=(document.getElementById('simName').value||'Demo Visitor').trim();
- const phone=document.getElementById('simPhone').value||('9'+(100000000+Math.floor(Math.random()*899999999)));
+ const phone=(document.getElementById('simPhone').value||'').replace(/[^\d+ ]/g,'').slice(0,15)||('9'+(100000000+Math.floor(Math.random()*899999999)));
  const city=document.getElementById('simCity').value;
  const goal=document.getElementById('simGoal').value;
  const adVal=document.getElementById('simAd').value;
@@ -694,7 +718,7 @@ function callCard(c){
    <div class="kp">CONCERNS</div><ul>${c.concerns.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>
    <div class="kp">NEXT STEPS</div><ul>${c.next.map(x=>`<li>${esc(x)}</li>`).join('')}</ul></div></div>`;
 }
-function focusOutcome(id,s){const l=DB.leads.find(x=>x.id===id);if(l){l.status=s;l.attempts++;save();document.getElementById('focus').innerHTML=focusHtml(l);}}
+function focusOutcome(id,s){const l=DB.leads.find(x=>x.id===id);if(l){l.status=s;l.attempts++;if(s==='Converted')ensureOrderFor(l);save();document.getElementById('focus').innerHTML=focusHtml(l);}}
 function focusCallback(id,label){const l=DB.leads.find(x=>x.id===id);if(l){l.callbackMin={'15M':15,'30M':30,'1HR':60,'2HR':120,'3HR':180,'4HR':240,'8HR':480,'Tomorrow':1440,'+1 week':10080}[label]||60;save();document.getElementById('focus').innerHTML=focusHtml(l);}}
 function addComment(id){const v=document.getElementById('cmtBox').value.trim();if(!v)return;const l=DB.leads.find(x=>x.id===id);l.comments.unshift({t:v,by:DB.cfg.reps[0],when:Date.now()});l.notes=(l.notes||0)+1;save();document.getElementById('focus').innerHTML=focusHtml(l);}
 function aiAsk(id){const l=DB.leads.find(x=>x.id===id);const ad=l.adId?adById(l.adId):null;
@@ -716,7 +740,7 @@ function rConverted(){
  const rows=cv.sort((a,b)=>b.created-a.created).map(l=>`<tr onclick="openFocus('${l.id}')" style="cursor:pointer">
    <td><b>${esc(l.name)}</b></td><td style="font-size:12px">${l.phone}</td><td style="font-size:12px">${l.forr}</td><td style="font-size:12px">${l.plan}</td><td style="font-size:12px">${l.goal||'—'}</td>
    <td><span class="badge" style="background:#FCE7F3;color:#BE185D">${l.platform||'direct'}</span><div style="font-size:10.5px;color:#94A3B8;margin-top:2px">${l.adId?esc(adById(l.adId).n.slice(0,28)):'—'}</div></td>
-   <td><span class="stars">${'<b>★</b>'.repeat(l.rating||4)}${'★'.repeat(5-(l.rating||4))}</span></td><td>${l.age||'—'}</td><td style="font-size:12px;color:#64748b">${fmtDate(l.created)}</td></tr>`).join('');
+   <td>${l.rating?`<span class="stars">${'<b>★</b>'.repeat(l.rating)}${'★'.repeat(5-l.rating)}</span>`:'<span class="muted">—</span>'}</td><td>${l.age||'—'}</td><td style="font-size:12px;color:#64748b">${fmtDate(l.created)}</td></tr>`).join('');
  return kpi+`<div class="card" style="padding:0"><div style="padding:13px 18px;font-weight:700">${cv.length} converted leads · click a row to view</div>
    <div class="twrap" style="border:none;border-top:1px solid var(--line)"><table class="tbl">
    <tr><th>Name</th><th>Phone</th><th>For</th><th>Plan</th><th>Goal</th><th>Source</th><th>Rating</th><th>Age</th><th>Created</th></tr>${rows}</table></div></div>`;
@@ -783,7 +807,7 @@ function rAnalytics(){
    <div class="row"><div style="flex:1;min-width:280px">${barCard('Leads by City',byCity,'#4F46E5')}</div>
    <div style="flex:1;min-width:280px">${barCard('Leads by '+(DB.cfg.concern==='goal'?'Goal':'Concern'),tally(ls.map(l=>l.goal)),'#8B5CF6')}</div>
    <div style="flex:1;min-width:280px">${barCard('Leads by Age',byAge,'#16A34A')}</div></div>
-   <div class="card" style="margin-top:16px"><div class="ch">Lead acquisition trend</div><div class="sec-sub">Total leads in selected period: ${ls.length}</div>${trendBars(ls,days)}</div>`;
+   <div class="card" style="margin-top:16px"><div class="ch">Lead acquisition trend</div><div class="sec-sub">Total leads in selected period: ${ls.length}${days>30?' · chart shows the last 30 days':''}</div>${trendBars(ls,days)}</div>`;
 }
 function tally(a){const m={};a.forEach(x=>{x=x||'Unknown';m[x]=(m[x]||0)+1;});return Object.entries(m).sort((x,y)=>y[1]-x[1]).slice(0,7);}
 function ageTally(ls){const b={'Under 18':0,'18-24':0,'25-34':0,'35-44':0,'45-54':0,'55+':0,'Unknown':0};ls.forEach(l=>{const a=l.age;if(a==null)b['Unknown']++;else if(a<18)b['Under 18']++;else if(a<25)b['18-24']++;else if(a<35)b['25-34']++;else if(a<45)b['35-44']++;else if(a<55)b['45-54']++;else b['55+']++;});return Object.entries(b).filter(e=>e[1]>0);}
@@ -833,7 +857,7 @@ function rLeadAnalysis(){
    <option value="content"${laGroup==='content'?' selected':''}>UTM Content</option>
    <option value="source"${laGroup==='source'?' selected':''}>UTM Source</option>
    <option value="campaign"${laGroup==='campaign'?' selected':''}>UTM Campaign</option>
-   <option value="ad"${laGroup==='ad'?' selected':''}>Campaign → Adset → Ad</option></select>`;
+   <option value="ad"${laGroup==='ad'?' selected':''}>Campaign → Ad</option></select>`;
  const statusCols=ST_SHORT.map(s=>`<th style="${POS.has(s[0])?'background:#F0FDF4':NEG.has(s[0])?'background:#FEF2F2':''}">${s[1]}</th>`).join('');
  const hdr=laGroup==='source'?'UTM Source':laGroup==='campaign'?'Campaign':laGroup==='content'?'UTM Content':'Campaign / Ad';
  return `<div class="btw" style="margin-bottom:8px"><div style="display:flex;gap:8px;align-items:center"><span class="muted" style="font-size:12px">Group by:</span>${groupSel}</div>
@@ -850,12 +874,13 @@ function heat(v,lo,hi,suf){const t=Math.max(0,Math.min(1,(v-lo)/(hi-lo)));const 
 function rSales(){
  setTop('Sales Performance','Per-agent calling, assignments and conversions');
  const reps=DB.reps;const stat={};reps.forEach(r=>stat[r]={assigned:0,calls:0,connected:0,talk:0,conv:0,book:0,untouched:0});
- DB.leads.forEach(l=>{const s=stat[l.rep];if(!s)return;s.assigned++;s.calls+=l.attempts;s.connected+=Math.round(l.attempts*0.55);s.talk+=l.attempts*Math.round(120+Math.random()*180);if(l.status==='Converted')s.conv++;if(l.status==='Need Demo')s.book++;if(l.attempts===0)s.untouched++;});
+ DB.leads.forEach(l=>{const s=stat[l.rep];if(!s)return;s.assigned++;s.calls+=l.attempts;s.connected+=Math.round(l.attempts*0.55);s.talk+=l.attempts*(120+(hash(l.id)%180));if(l.status==='Converted')s.conv++;if(l.status==='Need Demo')s.book++;if(l.attempts===0)s.untouched++;});
  const rows=reps.map(r=>{const s=stat[r];const cpct=s.calls?Math.round(s.connected/s.calls*100):0;
    return `<tr><td><b>${r}</b></td><td>${s.assigned}</td><td>${s.calls}</td><td>${s.connected}</td><td>${fmtTalk(s.talk)}</td><td>0</td><td style="color:#16A34A;font-weight:700">${s.conv}</td><td>${s.book}</td><td style="color:#D97706;font-weight:700">${s.untouched}</td><td>${cpct}%</td><td>${s.calls?Math.round(s.talk/s.calls)+'s':'—'}</td></tr>`;}).join('');
  const tot=reps.reduce((a,r)=>{const s=stat[r];a.assigned+=s.assigned;a.calls+=s.calls;a.connected+=s.connected;a.talk+=s.talk;a.conv+=s.conv;a.book+=s.book;a.untouched+=s.untouched;return a;},{assigned:0,calls:0,connected:0,talk:0,conv:0,book:0,untouched:0});
- return `<div class="btw" style="margin-bottom:14px"><div></div><div style="display:flex;gap:8px"><span class="pill">Month: June 2026</span><button class="btn sm">⬇ Export CSV</button></div></div>
-   <div class="card" style="padding:0"><div style="padding:13px 18px;font-weight:700">Month summary — 2026-06</div>
+ const mLbl=new Date().toLocaleDateString('en-IN',{month:'long',year:'numeric'});
+ return `<div class="btw" style="margin-bottom:14px"><div></div><div style="display:flex;gap:8px"><span class="pill">Month: ${mLbl}</span><button class="btn sm">⬇ Export CSV</button></div></div>
+   <div class="card" style="padding:0"><div style="padding:13px 18px;font-weight:700">Month summary — ${mLbl}</div>
    <div class="twrap" style="border:none;border-top:1px solid var(--line)"><table class="tbl">
    <tr><th>Agent</th><th>Assigned</th><th>Calls</th><th>Connected</th><th>Talk time</th><th>WhatsApp</th><th>Converted</th><th>Booked</th><th>Untouched</th><th>Connect %</th><th>Avg call</th></tr>
    ${rows}
@@ -942,9 +967,9 @@ function rSettings(){
      <div style="margin-top:10px;font-size:13px;line-height:2"><div><b>Client:</b> ${DB.cfg.brand}</div><div><b>Industry:</b> ${IND_LABELS[curInd]}</div><div><b>Reps:</b> ${DB.reps.join(', ')}</div><div><b>Plans:</b> ${DB.cfg.plans.join(', ')}</div></div></div>
    <div class="card" style="flex:1;min-width:300px"><div class="ch">Integrations</div>
      <div style="margin-top:10px;font-size:13px;line-height:2.1">
-       <div>📞 <b>Exotel</b> click-to-call, recording & transcripts <span class="badge" style="background:#D1FAE5;color:#047857">Connected</span></div>
-       <div>🔁 <b>Meta Conversions API</b> <span class="badge" style="background:#D1FAE5;color:#047857">Connected</span></div>
-       <div>🎬 <b>Ad Library</b> AI decode <span class="badge" style="background:#D1FAE5;color:#047857">On</span></div>
+       <div>📞 <b>Exotel</b> click-to-call, recording & transcripts <span class="badge" style="background:#FEF3C7;color:#B45309">In rollout</span></div>
+       <div>🔁 <b>Meta Conversions API</b> <span class="badge" style="background:#FEF3C7;color:#B45309">In rollout</span></div>
+       <div>🎬 <b>Ad Library</b> AI decode <span class="badge" style="background:#FEF3C7;color:#B45309">In rollout</span></div>
        <div>👥 <b>Lookalike audiences</b> <span class="badge" style="background:#FEF3C7;color:#B45309">After 1,000 customers</span></div>
      </div></div></div>
    <div class="card" style="margin-top:16px"><div class="ch">Capture snippet</div><div class="sec-sub">Paste on the client site to start capturing attributed leads.</div>
@@ -958,6 +983,17 @@ function banner(t){return `<div class="banner">✨ ${t}</div>`;}
 function buildIndSel(){const s=document.getElementById('indSel');s.innerHTML=Object.keys(INDUSTRIES).map(k=>`<option value="${k}">${INDUSTRIES[k].brand} — ${IND_LABELS[k]}</option>`).join('');s.value=curInd;s.onchange=()=>{curInd=s.value;load();render();};}
 try{const n=JSON.parse(localStorage.getItem('hldemo_nav')||'null');if(n){if(n.ind&&INDUSTRIES[n.ind])curInd=n.ind;if(n.route)route=n.route;}}catch(e){}
 buildIndSel();load();render();
+
+/* Focus Mode keyboard shortcuts (the outcome grid advertises 1-9, 0, -, =) */
+document.addEventListener('keydown',e=>{
+ const ov=document.getElementById('overlay');
+ if(!ov.classList.contains('show')||document.getElementById('simOv'))return;
+ const t=e.target;if(t&&/INPUT|TEXTAREA|SELECT/.test(t.tagName))return;
+ if(e.key==='Escape'){closeFocus();return;}
+ if(e.key==='ArrowRight'){e.preventDefault();skipLead();return;}
+ const o=OUTCOMES.find(x=>x[1]===e.key);
+ if(o&&focusId){e.preventDefault();focusOutcome(focusId,o[0]);}
+});
 </script>
 </body>
 </html>
